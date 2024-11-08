@@ -1,0 +1,501 @@
+---
+title: "Assignment 2"
+author: "Milo"
+date: "03/10/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+```{r cars}
+library(dplyr)
+library(ggplot2)
+library(ggpubr)
+library(Hmisc)
+library(PerformanceAnalytics)
+library(corrplot)
+library(tidyr)
+library(tidyverse)
+library(datasets)
+library(scales)
+```
+
+```{r}
+#Get your current working directory in R using **getwd ()** function
+#getwd()
+dir=getwd()
+```
+
+```{r}
+#Set your working  directory in R using **setwd ()** function
+#setwd ()
+setwd(dir)
+```
+
+#Task 1 Missing values
+```{r}
+dat <- read.csv("Movie.csv", header=TRUE)
+names(dat)
+str(dat)
+```
+```{r}
+sum(is.na(dat)) #Total amount of NAs before replacing blank cells with NAs
+```
+
+```{r}
+#replace blank with NA
+dat[dat == ""] <- NA
+```
+
+```{r}
+sum(is.na(dat)) #Total amount of NAs after replacing blank cells with NAs
+```
+
+Number of NA in each column 
+
+```{r}
+colnames(dat)[colSums(is.na(dat)) > 0] #Names of columns that have NA
+```
+```{r}
+col_NA <- colSums(is.na(dat)) #The amount of NA each column has
+col_NA
+```
+```{r}
+class(col_NA)
+```
+
+Look at how many NAs for columns that have more than 0 NA and calculate the % of NA per variable. 
+
+```{r}
+for (e in 1:ncol(dat)){
+  if (colSums(is.na(dat[,e, drop = FALSE]))>0) {print(paste("Column ", colnames(dat)[e], " has ", colSums(is.na(dat[,e, drop = FALSE])), " NA ", " which is only ","(", colSums(is.na(dat[,e, drop = FALSE])),"/3891)*100 = ", round((colSums(is.na(dat[,e, drop = FALSE]))/3891)*100, digits = 2), "% of the variable.", sep = ""))
+    }
+}
+```
+
+The amount of NAs in the columns that have NAs is minuscule. Except for column Aspect_ratio and Content_rating that has significantly higher NAs than other columns. However, at 1.9% NAs, it is still very small. Therefore no columns should be deleted due to the amount of NAs. 
+
+
+Look at how many NAs for rows that have more than 0 NA.
+```{r}
+a <-0
+for (e in 1:nrow(dat)){
+  if (rowSums(is.na(dat[e,]))>0) {print(paste("observation", e, "has", rowSums(is.na(dat[e,])), "NA"))
+    a <- a + 1
+    }
+}
+print(paste(a,"out of 3891 obversations has NA", ". Which is only", round((a/3891)*100,digits = 2), "% of the data"))
+
+```
+
+There are 26 columns/variables. The amount of NAs for observations that have NAs is very small (ranging from 1-8 NAs). Since there are 3891 observations in this dataset, we can safely remove all variables that has NAs which is only about 4% of the data set without introducing bias. 
+
+```{r}
+dat.cleaned <- na.omit(dat)
+any(is.na(dat.cleaned))
+dim(dat.cleaned)
+```
+
+After removing 157 observations with NAs, there are now 3734 obs left which is still a large amount of dataset for unbias correlation exploration. 
+
+#Task 2 Exploration:
+#Based on the Dataset, calculate “Profit” and determine the relationship between “Profit” and other variables (e.g. IMDB score). Hint: Profit = Gross – Budget. Use line plot or scatter plot to find the relationship.
+
+There are no NAs in variable gross nor budget so therefore we can create a column profit as usually. 
+
+```{r}
+dat2 <- dat.cleaned
+dat2$Profit <- dat2$Gross - dat2$Budget
+head(dat2)
+```
+We will explore the relationship between profit and other comparable variables such as: Movie_facebook_likes, Aspect_ratio, Imdb_score, Actor_2_facebook_likes, Year, Budget, Content_rating, Facenumber_in_poster, Cast_total_facebook_likes, Votes, Genre, Gross, Actor_1_facebook_likes, Actor_3_facebook_likes, Director_facebook_likes, Duration, Reviews, Color.
+
+```{r}
+#Profit vs Imdb_score
+ggplot(data = dat2, mapping = aes(y = Profit, x = Imdb_score)) + geom_point(color = 'darkblue', alpha=1/5)
+```
+
+Since there are a few outliners of movies that made losses, it has made the scatter plot scale spread out and hard to visualise the correlation. For example, according to the plot, there was a movie that lost 12 billions dollars. It is questionable if this movie really made a loss of 12 billions dollars or was it a data error. 
+Therefore, a new dataframe will be created to only take entries for only movies that made more than -200 millions dollars.
+
+```{r}
+dat_profit <- dat2[dat2$Profit >= -2e8,]
+head(dat_profit)
+```
+```{r}
+ggplot(data = dat_profit, mapping = aes(y = Profit, x = Imdb_score)) + geom_point(color = 'darkblue', alpha =1/5) +geom_smooth(se=FALSE, 
+              method = "lm", 
+              formula = y~poly(x,1), 
+              size = 1.5)
+```
+
+There is a positive correlation between Imdb_score and profit. As Imdb_score increases, profit is predicted to increase also. 
+
+```{r}
+ggplot(data = dat_profit, mapping = aes(y = Profit, x = Movie_facebook_likes)) + geom_point(color = 'darkblue', alpha =1/5)+geom_smooth(method = "lm") 
+```
+
+There is a positive correlation between Movie_facebook_likes and profit. As Movie_facebook_likes increases, profit is predicted to increase also. However, there is 1 outliner where Movie_facebook_likes is really high but profit is low. If it wasn't for this outliner, the regression line may even show a higher positive correlation. 
+
+```{r}
+ggplot(data = dat_profit, mapping = aes(y = Profit, x = Aspect_ratio)) + geom_point(color = 'darkblue', alpha=1/5)+geom_smooth(method = "lm") 
+```
+
+According to the regression line, there seems to be a slight negative correlation between profit and Aspect_ratio. However, there is an outliner of Aspect_ratio being 16 with low profit, this could have skewed the regression line. Perhaps if it wasn't for this outliner, the regression line could have been horizontal, hence no relationship between Profit and Aspect_ratio. 
+
+```{r}
+ggplot(data = dat_profit, mapping = aes(y = Profit, x = Actor_2_facebook_likes)) + geom_point(color = 'darkblue', alpha =1/5) +geom_smooth(method = "lm") 
+```
+
+There is a positive correlation between Actor_2_facebook_likes and Profit. As Actor_2_facebook_likes increases, profit seems to also increase. There is an outliner of really high Actor_2_facebook_likes but low profit. Perhaps if it wasn't for this outliner, the regression line would have been steeper, hence, higher positive correlation. 
+
+```{r}
+ggplot(data = dat_profit, mapping = aes(x = Year, y = Profit)) + geom_point(color = 'darkblue', alpha =1/5) +geom_smooth(method = "lm") 
+```
+
+Interestingly and unexpectedly, as Year increases, Profit seems to slightly decrease. There is a negative correlation between Year and Profit. There are many new movies that make really high profit but there are also many that made losses. 
+
+```{r}
+ggplot(data = dat_profit, mapping = aes(y = Profit, x = Content_rating)) + geom_point(color = 'darkblue', alpha =1/5) +geom_smooth(method = "lm") 
+```
+
+In terms of Content_rating, PG-13 and PG have movies from losses and to high profit and some outliners with really high profit. R and G are spread out from losses to medium and high profit. Not Rated seem to make more losses than profit. Almost all aprroved rating seem to make profit but they are as high PG, PG-13, G, and R. The rest of the categories seem to not have as many movies. 
+
+
+```{r}
+ggplot(data = dat_profit, mapping = aes(y = Profit, x = Budget)) + geom_point(color = 'darkblue', alpha=1/5) +geom_smooth(method = "lm") 
+```
+
+There seems to be a very small positive relationship between Profit and Budget. However, since budget is used to calculate profit, there should be a negative relationship between budget and profit if we hadn't removed the all movies with profit less than $200,000,000.
+
+```{r}
+ggplot(data = dat_profit, mapping = aes(y = Profit, x = Facenumber_in_poster)) + geom_point(color = 'darkblue', alpha =1/5) +geom_smooth(method = "lm") 
+```
+
+There is a slight negative correlation between Facenumber_in_poster and Profit. There are also 2 outliners where Facenumber_in_poster are high but Profit is low which could have skewed the regression line a little bit. If it wasn't for these 2 outliners, may we find that the regression line could be a little bit flatter which could mean that there is no correlation between Facenumber_in_poster and Profit. 
+
+```{r}
+ggplot(data = dat_profit, mapping = aes(y = Profit, x = Cast_total_facebook_likes)) + geom_point(color = 'darkblue', alpha=1/5) +geom_smooth(method = "lm") 
+```
+
+There is a positive correlation between Cast_total_facebook_likes and Profit. It is predicted that as Cast_total_facebook_likes increases, profit increases. If it wasn't for the outliner in the far right, the positive correlation may even be stronger.
+
+```{r}
+ggplot(data = dat_profit, mapping = aes(y = Profit, x = Votes)) + geom_point(color = 'darkblue', alpha=1/5) +geom_smooth(method = "lm") 
+```
+
+There is a positive correlation between Votes and Profit. It is predicted that as Votes increases, profit increases. 
+
+```{r}
+ggplot(data = dat_profit, mapping = aes(y = Profit, x = Genre)) + geom_point(color = 'darkblue', alpha =1/5) +geom_smooth(method = "lm") + theme(axis.text.x = element_text(angle = 45, hjust=1))
+```
+
+It can be said that action movies have big budget and as predicted earlier, the bigger the budget, the larger the profit. This could explain why the profit can be amongst the highest categories. Many action movies are also big losers in terms of profit as well. Other popular categories where profit ranges from really low to really high are Adventure, Animation, Comedy, Drama. Middle range categories are Biography, Crime, Horror, Fantasy, Mystery. Animation is spread out between low and high profit. Suprising Romance, Thriller, Musical, Western and Family don't do so well and fall in the range that barely make profit.
+
+
+```{r}
+ggplot(data = dat_profit, mapping = aes(y = Profit, x = Gross)) + geom_point(color = 'darkblue', alpha =1/5) +geom_smooth(method = "lm") 
+```
+
+As expected, the more money you make, the higher the profit. This shows strong positive correlation correlation.
+
+```{r}
+ggplot(data = dat_profit, mapping = aes(y = Profit, x = Actor_1_facebook_likes)) + geom_point(color = 'darkblue', alpha =1/5) +geom_smooth(method = "lm") 
+```
+
+There is a very slight positive correlation between Actor_1_facebook_likes and Profit. As Actor_1_facebook_likes increases, Profit is expected to slightly increase. If it wasn't for the far right outliner, the regression line might even be steeper. 
+
+```{r}
+ggplot(data = dat_profit, mapping = aes(y = Profit, x = Actor_3_facebook_likes)) + geom_point(color = 'darkblue', alpha = 1/5) +geom_smooth(method = "lm") 
+```
+
+Actor_1_facebook_likes is sligher more important than Actor_3_facebook_likes and a lot of actors got no fb likes. There is a positive correlation between Actor_3_facebook_likes and Profit. 
+
+```{r}
+ggplot(data = dat_profit, mapping = aes(y = Profit, x = Director_facebook_likes)) + geom_point(color = 'darkblue', alpha=1/5) +geom_smooth(method = "lm") 
+```
+
+There is a very low positive correlation between Director_facebook_likes and Profit, many directors with no to little fb likes.
+
+```{r}
+ggplot(data = dat_profit, mapping = aes(y = Profit, x = Duration)) + geom_point(color = 'darkblue', alpha=1/5) +geom_smooth(method = "lm") 
+```
+
+There is a low positive correlation between Duration and Profit. The majority of movies have duration between 50 mins to 150 mins. The longer the duration of a movie doesn't mean higher the profit. 
+
+```{r}
+ggplot(data = dat_profit, mapping = aes(y = Profit, x = Reviews)) + geom_point(color = 'darkblue', alpha=1/5) +geom_smooth(method = "lm") 
+```
+
+There is a medium positive correlation between Reviews and Profit. As reviews increases, Profit is predicted to increase. 
+
+```{r}
+ggplot(data = dat_profit, mapping = aes(y = Profit, x = Color)) + geom_point(color = 'darkblue', alpha=1/5) +geom_smooth(se=FALSE, 
+              method = "lm", 
+              formula = y~poly(x,1), 
+              size = 1.5)
+```
+
+```{r}
+ggplot(data = dat_profit, mapping = aes(x = Profit, y = ..density..)) + geom_freqpoly(mapping = aes(colour = Color), binwidth = 500000)
+```
+
+Generally, Colar movies can make a lot more money than Black and White but they can also lose a lot more profit as well. There are more Color movies as supposed to Black and White. In the density plot, it can be seen that a large amount of black and white movies make little to no profit. 
+
+#Calculate the correlation between the variable(s) used in the Dataset.
+
+```{r}
+#Select only numeric variables for correlation matrix
+dat_num <- dat2 %>% select_if(is.numeric)
+dat_cor<- cor(dat_num)
+round(dat_cor, 2)
+```
+
+```{r}
+corrplot(dat_cor, method = "pie", type = "upper", tl.pos="l")
+```
+
+We will use dat2 to plot for correlations that don't involve profit as one of the variables. This way we can incldue all observations. 
+
+dat_profit will be used for most correlations that have profit as one of the variables because due to outliners, it would easier to visualise when we exclude those that make less than $200 millions. However, dat2 will be used for the correlation of budget and profit and the reason will be explained below. 
+
+#Strong correlations
+
+Actor_1_facebook_likes has a strong positive correlation with Cast_total_facebook_likes with coefficient of 0.94. 
+
+```{r}
+ggplot(data = dat2, mapping = aes(y = Cast_total_facebook_likes, x = Actor_1_facebook_likes)) + geom_point(color = 'darkblue', alpha=1/5) +geom_smooth(method = "lm") 
+```
+
+There is a very strong positive correlation between Actor_1_facebook_likes and Cast_total_facebook_likes probably because Actor_1_facebook_likes is a large part of Cast_total_facebook_likes so as Actor_1_facebook_likes increases, Cast_total_facebook_likes is expected to also increase as well. 
+
+Reviews has a strong positive correlation with Movie_facebook_likes with coefficient of 0.7
+```{r}
+ggplot(data = dat2, mapping = aes(x = Movie_facebook_likes, y = Reviews)) + geom_point(color = 'darkblue',alpha=1/5) +geom_smooth(method = "lm") 
+```
+
+Reviews has a strong positive correlation with Movie_facebook_likes probably because if a movie has more reviews on IMDB, people will also look at that movie on fb and chances of that movie getting likes will also increase. 
+
+
+Reviews and Votes have positive correlation with coefficient 0.59
+```{r}
+ggplot(data = dat2, mapping = aes(x = Votes, y = Reviews)) + geom_point(color = 'darkblue', alpha = 1/5) +geom_smooth(se=FALSE, 
+              method = "lm", 
+              formula = y~poly(x,1), 
+              size = 1.5)
+```
+
+It is plausible to argue that the higher the votes are, the more reviews a movie can get because audience can have the tendency to select a movie to watch based on votes. After watching, they will review the movie. 
+
+Gross and Votes have positive correlation with coefficient being 0.62
+
+```{r}
+ggplot(data = dat2, mapping = aes(x = Votes, y = Gross)) + geom_point(color = 'darkblue', alpha = 1/10) +geom_smooth(method = "lm") 
+```
+
+It could be said that the more Votes a movies, the more people would want to watch the movie and hence the higher Gross income. 
+
+
+Actor_2_facebook_likes and Cast_total_facebook_likes have positive correlation with coefficient being 0.63
+
+```{r}
+ggplot(data = dat2, mapping = aes(x = Actor_2_facebook_likes, y = Cast_total_facebook_likes)) + geom_point(color = 'darkblue', alpha=1/5) +geom_smooth(method = "lm") 
+```
+
+Actor_2_facebook_likes contributes to Cast_total_facebook_likes so the positive correlation here is self-explanatory. However, there are 2 outliners. The first one has high Actor_2_facebook_likes but low Cast_total_facebook_likes, this could be because the actor is popular but the rest of the cast is not. The second one has high Cast_total_facebook_likes but low Actor_2_facebook_likes, this could be because the 2nd actor is not popular but the rest of the cast are more fans' favorites. 
+
+Budget has a very strong negative correlation with Profit with coefficient of -0.95
+
+```{r}
+ggplot(data = dat2, mapping = aes(x = Budget, y = Profit)) + geom_point(color = 'darkblue', alpha=1/5) +geom_smooth(method = "lm") 
+```
+
+dat2 is used here instead of dat_profit because we want to include all movies so we can get the most accurate regression line for this correlation when coefficient is -0.95. If we use dat_profit, the regression line will be slightly upwards which doesn't represent coefficient of -0.95.  
+
+Profit is Gross - Budget so mathematically, the higher the Budget, the lower the Profit and hence the negative correlation, hence the steep downwards slope.
+
+#Weak correlations
+There are many weak correlations, some of the weakly correlated pairs are: 
+
+Duration and Profit only have coefficient of 0.01
+
+```{r}
+ggplot(data = dat_profit, mapping = aes(x = Duration, y = Profit)) + geom_point(color = 'darkblue', alpha=1/5) +geom_smooth(method = "lm") 
+```
+
+This is probably because the duration of the movie does not really determine how successful the movie is going to be. A long movie can have bad quality that leads to low profit. 
+
+Aspect_ratio and Profit only have coefficient of -0.01
+
+```{r}
+ggplot(data = dat_profit, mapping = aes(x = Aspect_ratio, y = Profit)) + geom_point(color = 'darkblue', alpha=1/5) +geom_smooth(method = "lm") 
+```
+
+In addition to the explanation about profit and aspect_ratio above, the aspect_ratio is probably isn't one of the main factors that make the audience fall in love with a movie, it's probably more about the content of the movie. Therefore, aspect_ratio doesn't have a direct impact on a movie's profit. 
+
+Facenumber_in_poster and Profit only have coefficient of 0.01
+
+```{r}
+ggplot(data = dat_profit, mapping = aes(x = Facenumber_in_poster, y = Profit)) + geom_point(color = 'darkblue',alpha=1/5) +geom_smooth(method = "lm") 
+```
+
+There is probably isn't a correlation here because the amount of faces appear in a poster doesn't directly impact how successful a movie is. It is arguable that many bombshell movies have only 1 or 2 faces on the poster. Having too many faces on the poster could make tha poster forgetable and hence reduces the popularity of the movie which could also negatively impact a movie's income.
+
+Year and Votes only have coefficient of 0.01
+
+```{r}
+ggplot(data = dat2, mapping = aes(x = Year, y = Votes)) + geom_point(color = 'darkblue', alpha=1/5) +geom_smooth(method = "lm") 
+```
+
+Newer movies do not necessarily have higher Votes than their older counterparts. There are many newer movies with low Votes as well. In other words, how old a movie is does not have an impact on the amount of Votes.
+
+Budget and Actor_1_facebook_likes only have coefficient of 0.02
+
+```{r}
+ggplot(data = dat2, mapping = aes(y = Actor_1_facebook_likes, x = Budget)) + geom_point(color = 'darkblue', alpha=1/5)+geom_smooth(method = "lm") 
+```
+
+A high budget movie does not mean that the main actor will get a lot of facebook likes given the fact that the budget is mainly used for the production of the movie, not to promote and PR the main actor's private facebook page. 
+
+Aspect_ratio and Imdb_score only have coefficient of 0.03
+
+```{r}
+ggplot(data = dat2, mapping = aes(x = Aspect_ratio, y= Imdb_score)) + geom_point(color = 'darkblue', alpha=1/5) +geom_smooth(method = "lm") 
+```
+
+There is an outliner of of aspect_ratio 16 that happen to have a decent Imdb_score, if it wasn't for that, the regression line would probably be flatter. It is plausible to say that high aspect_ratio does not impact Imdb_score because Imdb_score is probably more influenced by the content, story line, quality of the movie rather than the aspect_ratio alone. 
+
+
+#Task 2
+
+```{r}
+dat <- read.csv("Titanic.csv", header=TRUE)
+names(dat)
+str(dat)
+```
+
+```{r}
+sum(is.na(dat)) #Total amount of NAs before replacing blank cells with NAs
+```
+
+```{r}
+#replace blank with NA
+dat[dat == ""] <- NA
+```
+
+```{r}
+sum(is.na(dat)) #Total amount of NAs after replacing blank cells with NAs
+```
+There are no NA nor blanks
+
+```{r}
+summary(dat)
+```
+
+Need to convert Class, Sex, Aged and Survived into factors for further analysis. Also this can pick up bad data entries if any. 
+
+```{r}
+dat$Class <- factor(dat$Class)
+dat$Sex <- factor(dat$Sex)
+dat$Survived <- factor(dat$Survived)
+dat$Age <- factor(dat$Age)
+```
+
+```{r}
+summary(dat)
+```
+```{r}
+library(arules)
+library(arulesViz)
+```
+
+```{r}
+class(dat)
+```
+```{r}
+dat2 <- dat[,-1]
+```
+
+
+```{r}
+dat2 <- as(dat2, "transactions")
+inspect(dat2[1:10])
+```
+
+```{r}
+survied_rules = apriori(dat2, parameter = list(minlen=2,supp=0.005,conf=0.8), appearance = list(default = "lhs", rhs ="Survived=Yes"))
+```
+```{r}
+inspect(survied_rules)
+```
+Sort rules based on lift: rules_lift <- sort (rules, by="lift", decreasing=TRUE) # 'high-lift' rules.
+
+```{r}
+rules_lift <- sort (survied_rules, by="lift", decreasing=TRUE) # 'high-lift' rules.
+inspect(rules_lift)
+```
+Above are the pairs of entries with highest lift values
+```{r}
+# Top 3 are as follow:
+inspect(rules_lift[1:3])
+```
+```{r}
+plot(rules_lift[1:3], method ="graph")
+```
+
+Question: Based on the generated rules, is there any difference between “Children” travelling first class, second class, and third class? Support your answer with an appropriate argument
+
+Based on the rules that has highest lift values, there are not enough information about Children in first class and third class to compare.
+
+```{r}
+survied_rules_class = apriori(dat2, parameter = list(minlen=2,supp=0.001,conf=0.3), appearance = list(lhs = c("Class=1st", "Class=2nd","Class=3rd" , "Age=Child"), rhs ="Survived=Yes"))
+```
+```{r}
+rules_lift_class <- sort (survied_rules_class, by="lift", decreasing=TRUE) # 'high-lift' rules.
+inspect(rules_lift_class)
+```
+
+The reason why 1st class and 3rd class children didn't show up in survied_rules is because the support and confident level was set too high then. Here we can see that 3rd class children have support of 0.01 and confidence of 0.34 so we needed to lower the support to get the rules for this demographics. 
+
+```{r}
+inspect(rules_lift_class[c(1,2,6)])
+```
+
+```{r}
+plot(rules_lift_class[c(1,2,6)], method ="graph")
+```
+
+Based on the rules and the graph, 1st class and 2nd class children are 3 times more likely to survive than 3rd class children (lift of 3.09 vs lift of 1.05). The confidence of 1 for children in 1st class and 2nd class showed that 100% of these demographics survived whereas confidence of 0.34 for 3rd class children means that only 34% of these demographics survived. In other words, 3rd class children are 3 times less likely to survive than those on 1st and 2nd class. 
+
+The size of the circle indicates that there are a lot more children on 2nd class than first class who survived. Based on the support, 1% of the population are 2nd class children (all survived) whereas 0.2%  of the population are 1st class children (all survived). 1.2% of the population is 3rd class children who survived but only a bit more than 30% of all 3rd class children survived. In other words, the majority of 3rd class children did not survived. 
+
+
+Explore more rules
+
+```{r}
+#Set the support and confidence low to get more rules
+survied_rules_explore = apriori(dat2, parameter = list(minlen=2,supp=0.06,conf=0.2), appearance = list(default="lhs", rhs ="Survived=Yes"))
+inspect(survied_rules_explore)
+```
+
+711 out of 1490 who survived so about 1/3 of the population survived. So in general, an average persion has about 33% chance of surviving the titanic and lift for the general population to survive is 1.  
+
+Female passengers are 2 times more likely to survive compared to the general population (lift =2.2). They also have a much higher chance of survival compared to 3rd class and male passengers ( lift 2.2 > 0.78 > 0.65). 
+
+Third class passengers are less likely to survive compared to the general population(lift =0.78 vs lift = 1). However 3rd class passengers have little more chance to survive compared to male passenagers (0.78 vs 0.65 lift). 
+
+Only 23% of crew survived and they are less likely to survive compared to the general population. They are about 25% less likely to survive compared to the general population (lift 0.74 vs lift 1) and they are only a little bit more likely to survive than male passengers (lift 0.74 vs lift 0.65).
+
+Male passengers' survival chances are low (lift only 0.65) so lower than the general population (0.65 vs 1), a little bit lower than 3rd class passenger (0.65 vs 0.78) and a lot lower than their female counterpart (0.65 vs 2.2).
+
+First class passengers are almost twice more likely to survive compared to the general population (lift 1.9 vs lift 1). They are a little bit less likely to survive compared to women (lift 1.9 vs lift 2.2), however, almost 3 times more likely to survive compared to male passengers (lift 1.9 vs lift 0.65). 
+
+If you're a first class female adult, your chances of surviving is nearly 100% (confidence =0.97). There are only about 6.3% (support = 0.063) of 1st class female adults on the ship. Your chances of surviving would be 3 times higher than the general population (lift 3 vs 1) and also higher than the general female demographics (lift 3 vs 2.2). 
